@@ -2,6 +2,7 @@
   'use strict';
 
   var KEY = 'carta_respuesta';
+  var COLECCION = 'mensajes';
   var $ = function (id) { return document.getElementById(id); };
 
   var texto = $('mensaje');
@@ -9,10 +10,18 @@
   var vista = $('vista');
   var vistaTexto = $('vista-texto');
   var vistaFecha = $('vista-fecha');
-  var envio = $('envio');
-  var aviso = $('aviso');
-  var crudo = $('crudo');
+  var estado = $('estado');
+  var boton = $('guardar');
   var actual = null;
+
+  // Firebase (Firestore)
+  var db = null;
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+    db = firebase.firestore();
+  } catch (e) {
+    console.error('No se pudo iniciar Firebase', e);
+  }
 
   function fechaLarga(iso) {
     try {
@@ -22,10 +31,6 @@
     } catch (e) {
       return '';
     }
-  }
-
-  function comoJson(o) {
-    return JSON.stringify(o, null, 2) + '\n';
   }
 
   function valida(o) {
@@ -52,23 +57,40 @@
     vista.hidden = false;
   }
 
-  // Al abrir: primero lo que haya en respuesta.json del repositorio, si no, lo guardado en este navegador.
-  fetch('respuesta.json', { cache: 'no-store' })
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .catch(function () { return null; })
-    .then(function (repo) {
-      var local = leerLocal();
-      if (valida(repo)) {
-        actual = repo;
-        mostrar(actual);
-      } else if (valida(local)) {
-        actual = local;
-        mostrar(actual);
-        envio.hidden = false;
-      }
-    });
+  function avisar(msg, esError) {
+    estado.textContent = msg;
+    estado.className = esError ? 'error' : 'note';
+  }
 
-  $('guardar').addEventListener('click', function () {
+  // Crea un documento en "mensajes" con id 0, 1, 2, ... según los que ya existen.
+  // La transacción evita pisar un documento que ya exista si dos mensajes llegan a la vez.
+  function guardarEnFirebase(mensaje, fecha) {
+    var col = db.collection(COLECCION);
+    return col.get().then(function (snap) {
+      function intentar(i) {
+        var ref = col.doc(String(i));
+        return db.runTransaction(function (tx) {
+          return tx.get(ref).then(function (s) {
+            if (s.exists) return false;
+            tx.set(ref, { mensaje: mensaje, fecha: fecha });
+            return true;
+          });
+        }).then(function (libre) {
+          return libre ? i : intentar(i + 1);
+        });
+      }
+      return intentar(snap.size);
+    });
+  }
+
+  // Al abrir: muestra la última respuesta guardada en este navegador.
+  var previa = leerLocal();
+  if (valida(previa)) {
+    actual = previa;
+    mostrar(actual);
+  }
+
+  boton.addEventListener('click', function () {
     var m = texto.value.trim();
     if (!m) {
       vacio.hidden = false;
@@ -76,50 +98,36 @@
       return;
     }
     vacio.hidden = true;
-    actual = { mensaje: m, fecha: new Date().toISOString() };
-    guardarLocal(actual);
-    mostrar(actual);
-    envio.hidden = false;
-    aviso.textContent = '';
-    crudo.hidden = true;
-    vista.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    if (!db) {
+      avisar('No se pudo conectar. Recarga la página e inténtalo de nuevo.', true);
+      return;
+    }
+
+    var nueva = { mensaje: m, fecha: new Date().toISOString() };
+    boton.disabled = true;
+    avisar('Guardando…', false);
+
+    guardarEnFirebase(nueva.mensaje, nueva.fecha)
+      .then(function () {
+        actual = nueva;
+        guardarLocal(actual);
+        mostrar(actual);
+        avisar('Tu respuesta se guardó.', false);
+        vista.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      })
+      .catch(function (e) {
+        console.error('Error al guardar en Firestore', e);
+        avisar('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.', true);
+      })
+      .then(function () {
+        boton.disabled = false;
+      });
   });
 
   $('editar').addEventListener('click', function () {
     if (!actual) return;
     texto.value = actual.mensaje;
     texto.focus();
-  });
-
-  $('descargar').addEventListener('click', function () {
-    if (!actual) return;
-    var blob = new Blob([comoJson(actual)], { type: 'application/json' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = 'respuesta.json';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-    aviso.textContent = 'Archivo descargado.';
-  });
-
-  $('copiar').addEventListener('click', function () {
-    if (!actual) return;
-    var t = comoJson(actual);
-    var listo = function () { aviso.textContent = 'Contenido copiado.'; };
-    var respaldo = function () {
-      crudo.value = t;
-      crudo.hidden = false;
-      crudo.focus();
-      crudo.select();
-      aviso.textContent = 'Selecciona el texto de abajo y cópialo.';
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(t).then(listo, respaldo);
-    } else {
-      respaldo();
-    }
   });
 })();

@@ -8,8 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Karla:wght@500;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;1,7..72,400&display=swap">
-  <link rel="stylesheet" href="style.css">
-</head>
+  <link rel="stylesheet" href="style.css"></head>
 <body>
   <main class="sheet">
     <header class="head">
@@ -41,6 +40,7 @@
       <div class="actions">
         <button type="button" id="guardar" class="btn">Guardar respuesta</button>
       </div>
+      <p id="estado" class="note" role="status"></p>
 
       <div id="vista" class="saved" hidden>
         <p class="saved-label">Respuesta guardada</p>
@@ -48,20 +48,12 @@
         <p id="vista-fecha" class="saved-date"></p>
         <button type="button" id="editar" class="btn btn-quiet">Editar</button>
       </div>
-
-      <div id="envio" class="send" hidden>
-        <p>Tu respuesta quedó guardada en este navegador. Para que llegue a quien te escribió, descarga el archivo <strong>respuesta.json</strong> y envíaselo, o copia su contenido.</p>
-        <div class="actions">
-          <button type="button" id="descargar" class="btn">Descargar respuesta.json</button>
-          <button type="button" id="copiar" class="btn btn-quiet">Copiar contenido</button>
-        </div>
-        <p id="aviso" class="note" role="status"></p>
-        <label class="sr-only" for="crudo">Contenido de respuesta.json</label>
-        <textarea id="crudo" rows="5" readonly hidden></textarea>
-      </div>
     </section>
   </main>
 
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
